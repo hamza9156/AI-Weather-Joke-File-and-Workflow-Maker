@@ -1,0 +1,145 @@
+{
+  "name": "AI Weather, Joke, File and Workflow Maker",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "responseMode": "streaming"
+        }
+      },
+      "id": "97a368c8-2ae0-4533-91e3-c643e200b45d",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [240, 304],
+      "webhookId": "57f91a8f-ccf0-42b4-abf1-03d382e9e4d2"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a friendly assistant with four abilities. Use Weather Tool for current weather: first work out the latitude and longitude of the city yourself, then call the tool. Use Joke Tool to fetch a random joke, and you may also write your own. Use File Maker to package any text (reports, notes, summaries) into a named file and show the file contents in a code block. Use Workflow Generator when the user wants an n8n workflow: call it with a name and step list, then show the JSON in a code block. Keep answers short."
+        }
+      },
+      "id": "06807c42-8769-4cac-b8ad-b36594bc2b38",
+      "name": "Assistant Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [528, 304]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-5",
+          "cachedResultName": "Claude Sonnet 5"
+        },
+        "options": {}
+      },
+      "id": "08c470a6-e0e4-4255-9300-42ceb078e8ff",
+      "name": "Claude Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [448, 560]
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "id": "f5e6fa59-50ac-4b1a-bdd4-55e5ec597eca",
+      "name": "Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [608, 560]
+    },
+    {
+      "parameters": {
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "latitude",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('latitude', 'Latitude of the city') }}"
+            },
+            {
+              "name": "longitude",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('longitude', 'Longitude of the city') }}"
+            },
+            {
+              "name": "current",
+              "value": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code"
+            },
+            {
+              "name": "timezone",
+              "value": "auto"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a6e5605d-e59d-4578-b89a-67b2de5f282b",
+      "name": "Weather Tool",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [768, 560]
+    },
+    {
+      "parameters": {
+        "url": "https://official-joke-api.appspot.com/random_joke",
+        "options": {}
+      },
+      "id": "6937c0c5-e8d8-40d1-b289-842123ebf4de",
+      "name": "Joke Tool",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [928, 560]
+    },
+    {
+      "parameters": {
+        "description": "Packages text into a ready-to-save file. Input: JSON string with \"filename\" (e.g. report.txt) and \"content\". Returns the file name and content to hand to the user.",
+        "jsCode": "let d; try { d = JSON.parse(query); } catch (e) { d = { filename: \"output.txt\", content: String(query) }; } const name = d.filename || \"output.txt\"; return \"FILE: \" + name + \" | CREATED: \" + new Date().toISOString() + \" | CONTENT: \" + (d.content || \"\");"
+      },
+      "id": "8e31c4fd-4b03-4b27-98b2-a94093b26f0b",
+      "name": "File Maker",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [1088, 560]
+    },
+    {
+      "parameters": {
+        "description": "Builds importable n8n workflow JSON. Input: JSON string with \"name\" and \"steps\" (array of short step names). Returns workflow JSON the user can paste into n8n.",
+        "jsCode": "let d; try { d = JSON.parse(query); } catch (e) { d = { name: \"Generated Workflow\", steps: [String(query)] }; } const steps = d.steps || []; const nodes = [{ parameters: {}, name: \"Manual Trigger\", type: \"n8n-nodes-base.manualTrigger\", typeVersion: 1, position: [0, 0] }]; const connections = {}; let prev = \"Manual Trigger\"; steps.forEach(function (s, i) { nodes.push({ parameters: {}, name: s, type: \"n8n-nodes-base.noOp\", typeVersion: 1, position: [220 * (i + 1), 0] }); connections[prev] = { main: [[{ node: s, type: \"main\", index: 0 }]] }; prev = s; }); return JSON.stringify({ name: d.name || \"Generated Workflow\", nodes: nodes, connections: connections });"
+      },
+      "id": "0d70c15a-09bc-4a0d-a05a-3c3279864b69",
+      "name": "Workflow Generator",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [1248, 560]
+    }
+  ],
+  "connections": {
+    "Chat Trigger": {
+      "main": [[{ "node": "Assistant Agent", "type": "main", "index": 0 }]]
+    },
+    "Claude Model": {
+      "ai_languageModel": [[{ "node": "Assistant Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Chat Memory": {
+      "ai_memory": [[{ "node": "Assistant Agent", "type": "ai_memory", "index": 0 }]]
+    },
+    "Weather Tool": {
+      "ai_tool": [[{ "node": "Assistant Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Joke Tool": {
+      "ai_tool": [[{ "node": "Assistant Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "File Maker": {
+      "ai_tool": [[{ "node": "Assistant Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "Workflow Generator": {
+      "ai_tool": [[{ "node": "Assistant Agent", "type": "ai_tool", "index": 0 }]]
+    }
+  },
+  "pinData": {}
+}
